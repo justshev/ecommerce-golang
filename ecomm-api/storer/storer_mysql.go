@@ -35,3 +35,12 @@ func (ms *MySqlStorer) GetProduct(ctx context.Context, id int64) (*Product, erro
 	}
 	return &p, nil
 }
+
+func (ms *MySqlStorer) ListProducts(ctx context.Context) ([]*Product, error) {
+	var products []*Product
+	err := ms.db.SelectContext(ctx, &products, "SELECT * FROM products")
+	if err != nil {
+		return nil, err
+	}
+	return products, nil
+}
