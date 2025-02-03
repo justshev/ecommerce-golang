@@ -2,6 +2,7 @@ package storer
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -22,9 +23,7 @@ func withTestDB(t *testing.T, fn func(*sqlx.DB, sqlmock.Sqlmock)) {
 }
 
 func TestCreateProduct(t *testing.T){
-withTestDB(t, func(db *sqlx.DB, mock sqlmock.Sqlmock){
-st := NewMySqlStorer(db)
-p := &Product{
+	p := &Product{
 	Name: "test",
 	Image: "test.jpg",
 	Category: "test",
@@ -34,14 +33,60 @@ p := &Product{
 	Price: 100,
 	CountInStock: 10,
 }
-mock.ExpectExec("INSERT INTO products (name, image, category, description, rating, num_reviews, price, count_in_stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").WillReturnResult(sqlmock.NewResult(1, 1))
-cp , err := st.CreateProduct(context.Background(), p)
+tcs := []struct {
+	name string
+	test func(*testing.T, *sqlx.DB, sqlmock.Sqlmock)
+} {
+	{
+		name : "success",
+		test: func(t *testing.T, db *sqlx.DB, mock sqlmock.Sqlmock){
+			st := NewMySqlStorer(db)
+			mock.ExpectExec("INSERT INTO products (name, image, category, description, rating, num_reviews, price, count_in_stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").WillReturnResult(sqlmock.NewResult(1, 1))
+			cp , err := st.CreateProduct(context.Background(), p)
+			require.NoError(t, err)
+			require.Equal(t, int64(1), cp.ID)
+			err = mock.ExpectationsWereMet()
+			require.NoError(t, err)
+		},
+	} , 
+	{
+		name : "failure insert product",
+		test: func(t *testing.T, db *sqlx.DB, mock sqlmock.Sqlmock){
+			st := NewMySqlStorer(db)
+			mock.ExpectExec("INSERT INTO products (name, image, category, description, rating, num_reviews, price, count_in_stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").WillReturnError(fmt.Errorf("error"))
+			_, err := st.CreateProduct(context.Background(), p)
+			require.Error(t, err)
 
-require.NoError(t, err)
-require.Equal(t, int64(1), cp.ID)
-err = mock.ExpectationsWereMet()
-require.NoError(t, err)
+			err = mock.ExpectationsWereMet()
+			require.NoError(t, err)
+		},
+	},
+	{
+		name : "failure last insert id",
+		test: func(t *testing.T, db *sqlx.DB, mock sqlmock.Sqlmock){
+			st := NewMySqlStorer(db)
+			mock.ExpectExec("INSERT INTO products (name, image, category, description, rating, num_reviews, price, count_in_stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").WillReturnResult(sqlmock.NewErrorResult(fmt.Errorf("error")))
+			_,  err := st.CreateProduct(context.Background(), p)
+			require.Error(t, err)
+
+			err = mock.ExpectationsWereMet()
+			require.NoError(t, err)
+		},
+	},
+}
+for _, tc := range tcs {
+	t.Run(tc.name, func(t *testing.T){
+		withTestDB(t, func(db *sqlx.DB, mock sqlmock.Sqlmock){
+	st := NewMySqlStorer(db)
+	tc.test(t, st.db, mock)
+
+
+
 })
+	})
+	
+}
+
 
 
 }
