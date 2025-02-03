@@ -5,7 +5,7 @@ import "time"
 type Product struct {
 	ID int64 `json:"id" db:"id"`
 	Name string `json:"name" db:"name"`
-	Imate string `json:"image" db:"image"`
+	Image string `json:"image" db:"image"`
 	Category string `json:"category" db:"category"`
 	Description string `json:"description" db:"description"`
 	Rating int64 `json:"rating" db:"rating"`
