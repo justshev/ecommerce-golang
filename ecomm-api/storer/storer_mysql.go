@@ -26,3 +26,12 @@ func (ms *MySqlStorer) CreateProduct(ctx context.Context, p *Product ) (*Product
 	return p, nil
 
 }
+
+func (ms *MySqlStorer) GetProduct(ctx context.Context, id int64) (*Product, error) {
+	var p Product
+	err := ms.db.GetContext(ctx, &p, "SELECT * FROM products WHERE id=?", id)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
