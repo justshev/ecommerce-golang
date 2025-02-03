@@ -9,13 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateProduct(t *testing.T){
-mockDB,mock,err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
-if err != nil {
-	t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+
+func withTestDB(t *testing.T, fn func(*sqlx.DB, sqlmock.Sqlmock)) {
+	mockDB, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+	defer mockDB.Close()
+	db := sqlx.NewDb(mockDB, "sqlmock")
+	fn(db, mock)
+
 }
-defer mockDB.Close()
-db := sqlx.NewDb(mockDB, "sqlmock")
+
+func TestCreateProduct(t *testing.T){
+withTestDB(t, func(db *sqlx.DB, mock sqlmock.Sqlmock){
 st := NewMySqlStorer(db)
 p := &Product{
 	Name: "test",
@@ -34,17 +41,14 @@ require.NoError(t, err)
 require.Equal(t, int64(1), cp.ID)
 err = mock.ExpectationsWereMet()
 require.NoError(t, err)
+})
+
 
 }
 
 func TestGetProduct(t *testing.T){
-	mockDB,mock,err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
-	if err != nil {
-		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
-	}
-	defer mockDB.Close()
-	db := sqlx.NewDb(mockDB, "sqlmock")
-	st := NewMySqlStorer(db)
+	withTestDB(t, func(db *sqlx.DB, mock sqlmock.Sqlmock){
+st := NewMySqlStorer(db)
 	p := &Product{
 		Name: "test",
 		Image: "test.jpg",
@@ -64,4 +68,6 @@ func TestGetProduct(t *testing.T){
 
 	err = mock.ExpectationsWereMet()
 	require.NoError(t, err)
+	})
+	
 }
