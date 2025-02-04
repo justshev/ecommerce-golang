@@ -2,6 +2,7 @@ package storer
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -59,4 +60,74 @@ func (ms *MySqlStorer) DeleteProduct(ctx context.Context, id int64) error {
 		return err
 	}
 	return nil
+}
+
+func (ms *MySqlStorer) CreateOrder(ctx context.Context, o *Order) (*Order, error) {
+	err := ms.execTx(ctx, func(tx *sqlx.Tx) error {
+		order, err := createOrder(ctx, tx, o)
+		if err != nil {
+			return fmt.Errorf("create order: %w", err)
+		}
+		for _, oi := range o.Items {
+			oi.OrderID = order.ID
+			err = createOrderItem(ctx, tx, oi)
+			if err != nil {
+				return fmt.Errorf("create order item: %w", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("exec tx: %w", err)
+	}
+	return o, nil
+
+}
+
+func createOrder(ctx context.Context, tx *sqlx.Tx, o *Order) (*Order, error) {
+	res, err := tx.NamedExecContext(ctx, "INSERT INTO orders (payment_method, tax_price, shipping_price, total_price) VALUES (:payment_method, :tax_price, :shipping_price, :total_price)", o)
+	if err != nil {
+		return nil, fmt.Errorf("insert order: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("get last insert id: %w", err)
+	}
+	o.ID = id
+	return o, nil
+}
+
+func createOrderItem(ctx context.Context, tx *sqlx.Tx , oi OrderItem) error {
+	res , err := tx.NamedExecContext(ctx, "INSERT INTO order_items (name, quantity, image, price, product_id, order_id) VALUES (:name, :quantity, :image, :price, :product_id, :order_id)", oi)
+	if err != nil {
+		return fmt.Errorf("insert order item: %w", err)
+	}
+	id , err := res.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("get last insert id: %w", err)
+	}
+	oi.ID = id
+	return nil
+}
+
+func (ms *MySqlStorer) execTx(ctx context.Context, fn func(*sqlx.Tx)error ) error {
+	tx, err := ms.db.BeginTxx(ctx, nil)
+	
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+
+	err = fn(tx)
+	if err != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			return fmt.Errorf("rollback tx: %w", rbErr)
+		}
+
+		return fmt.Errorf("tx: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
+
 }
