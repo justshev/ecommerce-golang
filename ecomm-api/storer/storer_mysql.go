@@ -122,7 +122,23 @@ func (ms *MySqlStorer) GetOrder(ctx context.Context, id int64) (*Order, error) {
 	}
 	return &o, nil
 }
+func (ms *MySqlStorer) ListOrders(ctx context.Context) ([]*Order, error) {
+	var orders []*Order
+	err := ms.db.SelectContext(ctx, &orders, "SELECT * FROM orders")
+	if err != nil {
+		return nil, fmt.Errorf("list orders: %w", err)
+	}
+	for i := range orders {
+		var items []OrderItem
+		err = ms.db.SelectContext(ctx, &items, "SELECT * FROM order_items WHERE order_id=?", orders[i].ID)
+		if err != nil {
+			return nil, fmt.Errorf("get order items: %w", err)
+		}
+		orders[i].Items = items
 
+	}
+	return orders, nil
+}
 func (ms *MySqlStorer) execTx(ctx context.Context, fn func(*sqlx.Tx)error ) error {
 	tx, err := ms.db.BeginTxx(ctx, nil)
 	
