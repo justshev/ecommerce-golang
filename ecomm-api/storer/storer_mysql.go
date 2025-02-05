@@ -139,6 +139,24 @@ func (ms *MySqlStorer) ListOrders(ctx context.Context) ([]*Order, error) {
 	}
 	return orders, nil
 }
+func (ms *MySqlStorer) DeleteOrder(ctx context.Context, id int64) error {
+
+	err := ms.execTx(ctx, func(tx *sqlx.Tx) error {
+		_, err := tx.ExecContext(ctx, "DELETE FROM order_items WHERE order_id=?", id)
+		if err != nil {
+			return fmt.Errorf("delete order items: %w", err)
+		}
+		_, err = tx.ExecContext(ctx, "DELETE FROM orders WHERE id=?", id)
+		if err != nil {
+			return fmt.Errorf("delete order: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("exec tx: %w", err)
+	}
+	return nil
+}
 func (ms *MySqlStorer) execTx(ctx context.Context, fn func(*sqlx.Tx)error ) error {
 	tx, err := ms.db.BeginTxx(ctx, nil)
 	
