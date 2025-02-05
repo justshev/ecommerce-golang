@@ -109,6 +109,19 @@ func createOrderItem(ctx context.Context, tx *sqlx.Tx , oi OrderItem) error {
 	oi.ID = id
 	return nil
 }
+func (ms *MySqlStorer) GetOrder(ctx context.Context, id int64) (*Order, error) {
+	var o Order
+	err := ms.db.GetContext(ctx, &o, "SELECT * FROM orders WHERE id=?", id)
+	if err != nil {
+		return nil, fmt.Errorf("get order: %w", err)
+	}
+	var items []OrderItem
+	err = ms.db.SelectContext(ctx, &items, "SELECT * FROM order_items WHERE order_id=?", id)
+	if err != nil {
+		return nil, fmt.Errorf("get order items: %w", err)
+	}
+	return &o, nil
+}
 
 func (ms *MySqlStorer) execTx(ctx context.Context, fn func(*sqlx.Tx)error ) error {
 	tx, err := ms.db.BeginTxx(ctx, nil)
